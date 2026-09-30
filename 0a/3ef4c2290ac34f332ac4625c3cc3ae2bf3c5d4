@@ -1,0 +1,74 @@
+.github/workflows/ci.yml
+  h_b66657b948a50f 1-31
+.gitignore
+  h_b66657b948a50f 1-8
+CODE_OF_CONDUCT.md
+  h_b66657b948a50f 1-131
+Examples/README.md
+  h_b66657b948a50f 1-36
+Examples/ReporterFixture/Host/Main.swift
+  h_b66657b948a50f 1-69
+Examples/ReporterFixture/ReporterFixture.xcodeproj/project.pbxproj
+  h_b66657b948a50f 1-43
+Examples/ReporterFixture/ReporterFixture.xcodeproj/xcshareddata/xcschemes/ReporterFixture.xcscheme
+  h_b66657b948a50f 1-14
+Examples/ReporterFixture/Tests/FixtureTests.swift
+  h_b66657b948a50f 1-35
+Examples/ReporterFixture/UITests/FixtureUITests.swift
+  h_b66657b948a50f 1-20
+Package.swift
+  h_b66657b948a50f 1-19
+README.md
+  h_b66657b948a50f 1-184
+Scripts/check.sh
+  h_b66657b948a50f 1-42
+Sources/TidenReporterCore/APIClient.swift
+  h_b66657b948a50f 1-159
+Sources/TidenReporterCore/Configuration.swift
+  h_b66657b948a50f 1-162
+Sources/TidenReporterCore/Models.swift
+  h_b66657b948a50f 1-134
+Sources/TidenReporterCore/ProcessRunner.swift
+  h_b66657b948a50f 1-96
+Sources/TidenXCResult/Attachments.swift
+  h_b66657b948a50f 1-87
+Sources/TidenXCResult/Converter.swift
+  h_b66657b948a50f 1-269
+Sources/TidenXCResult/ReportCoordinator.swift
+  h_b66657b948a50f 1-90
+Sources/TidenXCResult/SourceResolver.swift
+  h_b66657b948a50f 1-106
+Sources/TidenXCResult/XCResultReader.swift
+  h_b66657b948a50f 1-70
+Sources/tiden-swift/Main.swift
+  h_b66657b948a50f 1-100
+Tests/TidenReporterTests/APIClientTests.swift
+  h_b66657b948a50f 1-107
+Tests/TidenReporterTests/AttachmentTests.swift
+  h_b66657b948a50f 1-69
+Tests/TidenReporterTests/ConverterTests.swift
+  h_b66657b948a50f 1-287
+Tests/TidenReporterTests/CoordinatorTests.swift
+  h_b66657b948a50f 1-99
+Tests/TidenReporterTests/Fixtures/local-config.json
+  h_b66657b948a50f 1
+Tests/TidenReporterTests/Fixtures/parameter-details.json
+  h_b66657b948a50f 1-118
+Tests/TidenReporterTests/IdentityAndConfigurationTests.swift
+  h_b66657b948a50f 1-69
+Tests/TidenReporterTests/ProcessAndCLITests.swift
+  h_b66657b948a50f 1-95
+Tests/TidenReporterTests/Support.swift
+  h_b66657b948a50f 1-78
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "0a3ef4c2290ac34f332ac4625c3cc3ae2bf3c5d4",
+  "prompts": {},
+  "humans": {
+    "h_b66657b948a50f": {
+      "author": "Vadim Shashin <vshashin@qase.io>"
+    }
+  }
+}
