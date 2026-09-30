@@ -1,0 +1,8 @@
+.build/
+.swiftpm/
+artifacts/
+.tiden/
+*.xcresult/
+DerivedData/
+.DS_Store
+tiden.config.json

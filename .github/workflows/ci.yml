@@ -1,0 +1,31 @@
+name: Swift reporter
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    # Requires an organization-managed Xcode 27 runner; provision these labels before enabling CI.
+    runs-on: [self-hosted, macOS, ARM64, xcode-27]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Toolchain
+        run: |
+          xcodebuild -version
+          swift --version
+      - name: Build and native Xcode validation
+        env:
+          TIDEN_MODE: report
+        run: bash Scripts/check.sh
+      - name: Preserve validation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: swift-reporter-validation
+          path: artifacts/validation.*/
+          if-no-files-found: warn
