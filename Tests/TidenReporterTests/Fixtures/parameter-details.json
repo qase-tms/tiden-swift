@@ -1,0 +1,118 @@
+{
+  "arguments": [
+    {
+      "value": ".unscaled"
+    },
+    {
+      "value": ".flagged(reason: \"Geometry changed\")"
+    },
+    {
+      "value": ".notToScale"
+    }
+  ],
+  "devices": [
+    {
+      "architecture": "arm64",
+      "deviceId": "device-1",
+      "deviceName": "My Mac",
+      "modelName": "MacBook Pro",
+      "osBuildNumber": "26A428",
+      "osVersion": "27.0",
+      "platform": "macOS"
+    }
+  ],
+  "duration": "Average duration 0,014 seconds",
+  "durationInSeconds": 0.013743877410888672,
+  "hasMediaAttachments": false,
+  "hasPerformanceMetrics": false,
+  "testDescription": "Test case with 3 runs",
+  "testIdentifier": "SampleExportTests/unsafeSheetStatesNeverEmitScaledNumbers(_:)",
+  "testIdentifierURL": "test://com.apple.xcode/Sample/SampleTests/SampleExportTests/unsafeSheetStatesNeverEmitScaledNumbers(_:)",
+  "testName": "unsafeSheetStatesNeverEmitScaledNumbers(_:)",
+  "testPlanConfigurations": [
+    {
+      "configurationId": "1",
+      "configurationName": "Configuration 1"
+    }
+  ],
+  "testResult": "Passed",
+  "testRuns": [
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "children": [
+                    {
+                      "details": "Swift.String",
+                      "name": "reason : \"Geometry changed\"",
+                      "nodeType": "Test Value"
+                    }
+                  ],
+                  "details": "(reason: Swift.String)",
+                  "name": "flagged : (reason: \"Geometry changed\")",
+                  "nodeType": "Test Value"
+                }
+              ],
+              "details": "Sample.SheetScaleState",
+              "name": "state : .flagged(reason: \"Geometry changed\")",
+              "nodeType": "Test Value"
+            }
+          ],
+          "name": "Arguments",
+          "nodeType": "Arguments"
+        }
+      ],
+      "duration": "0,015s",
+      "durationInSeconds": 0.014828681945800781,
+      "name": ".flagged(reason: \"Geometry changed\")",
+      "nodeIdentifierURL": "test://com.apple.xcode/Sample/SampleTests/SampleExportTests/unsafeSheetStatesNeverEmitScaledNumbers(_:)?args=ba29de9ab3324cf43264135c4b0ab29060e17f44e4d7e3f32101c252a7d6c971",
+      "nodeType": "Arguments",
+      "result": "Passed"
+    },
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "details": "Sample.SheetScaleState",
+              "name": "state : .notToScale",
+              "nodeType": "Test Value"
+            }
+          ],
+          "name": "Arguments",
+          "nodeType": "Arguments"
+        }
+      ],
+      "duration": "0,013s",
+      "durationInSeconds": 0.013217926025390625,
+      "name": ".notToScale",
+      "nodeIdentifierURL": "test://com.apple.xcode/Sample/SampleTests/SampleExportTests/unsafeSheetStatesNeverEmitScaledNumbers(_:)?args=6ff4776a82704605ba85340d2cdaf4a50c6ec69652d717056cc669a73d6d43d1",
+      "nodeType": "Arguments",
+      "result": "Passed"
+    },
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "details": "Sample.SheetScaleState",
+              "name": "state : .unscaled",
+              "nodeType": "Test Value"
+            }
+          ],
+          "name": "Arguments",
+          "nodeType": "Arguments"
+        }
+      ],
+      "duration": "0,013s",
+      "durationInSeconds": 0.01318502426147461,
+      "name": ".unscaled",
+      "nodeIdentifierURL": "test://com.apple.xcode/Sample/SampleTests/SampleExportTests/unsafeSheetStatesNeverEmitScaledNumbers(_:)?args=79218bdfd9cc673001a4fae437c0909b854a0bbf763957c31fde0244a13755bb",
+      "nodeType": "Arguments",
+      "result": "Passed"
+    }
+  ]
+}
