@@ -38,7 +38,13 @@ public actor ReportCoordinator {
             try persist(input.details, name: "xcode-details.json")
             try persist(input.activities, name: "xcode-activities.json")
             let sources = try SourceResolver(root: config.rootDir, overrides: config.sourceMap)
-            converted = Converter().convert(input, sources: sources, rootSuite: config.rootSuite, exitCode: exitCode, cancelled: cancelled)
+            converted = Converter().convert(input, sources: sources, rootSuite: config.rootSuite, repository: config.repository,
+                                            exitCode: exitCode, cancelled: cancelled)
+            // Without a repository the identity parts are left out and the signature is the whole identity, as before.
+            // That works, so it is a warning, but it must not be silent.
+            if config.repository == nil {
+                converted.summary.diagnostics.append("Could not tell which git repository these tests belong to, so results are sent without identity parts (the signature still identifies each case). Set TIDEN_REPOSITORY (for example https://github.com/<owner>/<repo>) or run inside a checkout that has an origin remote.")
+            }
         } catch {
             var summary = ReportSummary(); summary.exitCode = exitCode; summary.cancelled = cancelled
             summary.errors = [config.redact(String(describing: error))]
@@ -77,6 +83,9 @@ public actor ReportCoordinator {
                 for (index, batch) in batches.enumerated() { try batch.write(to: config.output.appendingPathComponent("batch-\(index + 1).json"), options: .atomic) }
                 try await api.report(batches, run: run)
             } catch { converted.summary.errors.append(config.redact(String(describing: error))) }
+            if await api.identityRejected {
+                converted.summary.diagnostics.append("The server does not know the \"identity\" field yet, so results were sent without it; each case is still identified by its signature.")
+            }
             if await isCancelled() {
                 converted.summary.cancelled = true
                 converted.summary.errors.append("Cancelled during reporting; refusing completion")

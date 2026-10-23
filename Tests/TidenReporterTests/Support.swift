@@ -8,8 +8,11 @@ func temporaryDirectory() throws -> URL {
     try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
     return url
 }
-func sampleRow(id: String = "11111111-1111-4111-8111-111111111111", status: String = "passed") -> ResultCreate {
-    ResultCreate(id: id, title: "Example", signature: "swift/v1::Tests::Suite/pass", execution: ResultExecution(status: status, durationMilliseconds: 125, startTime: 1000), fields: ["file_path": "Tests/Suite.swift"])
+func sampleRow(id: String = "11111111-1111-4111-8111-111111111111", status: String = "passed", identity: IdentityParts? = nil) -> ResultCreate {
+    ResultCreate(id: id, title: "Example", signature: "swift/v1::Tests::Suite/pass", execution: ResultExecution(status: status, durationMilliseconds: 125, startTime: 1000), fields: ["file_path": "Tests/Suite.swift"], identity: identity)
+}
+func sampleIdentity(repository: String = "https://github.com/acme/shop") -> IdentityParts {
+    IdentityParts(language: "swift", repository: repository, scope: ["Tests", "Suite"], name: ["pass"])
 }
 func onlineConfig(output: URL = URL(fileURLWithPath: "/tmp/unused")) -> Configuration {
     var config = Configuration(rootDir: URL(fileURLWithPath: "/tmp"), output: output)

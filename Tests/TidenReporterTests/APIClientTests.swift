@@ -80,6 +80,68 @@ struct APIClientTests {
         catch { #expect(String(describing: error).contains("run is completed")); #expect(String(describing: error).contains("LOCKED")) }
         #expect(await transport.requests.count == 1)
     }
+    private static let unknownIdentity = #"{"code":3,"message":"proto: (line 1:310): unknown field \"identity\"","details":[]}"#
+    private func identityRows() -> [ResultCreate] {
+        [sampleRow(id: "00000000-0000-4000-8000-000000000001", identity: sampleIdentity()),
+         sampleRow(id: "00000000-0000-4000-8000-000000000002", identity: sampleIdentity())]
+    }
+    private func ids(_ body: Data) throws -> [String] { try JSONValue.decode(body)["results"].array.compactMap { $0["id"].string } }
+    @Test func aServerThatDoesNotKnowIdentityGetsTheSameBatchWithoutIt() async throws {
+        let transport = MockTransport([http(400, Self.unknownIdentity), http(#"{"accepted":"2","duplicates":"0","errors":[]}"#)])
+        let client = APIClient(config: onlineConfig(), transport: transport, sleeper: RecordingSleeper())
+        let payloads = try APIClient.batches(identityRows(), size: 200)
+        try await client.report(payloads, run: RunHandle(sequence: 1, ownsCompletion: true))
+        let requests = await transport.requests
+        #expect(requests.count == 2)
+        let first = try JSONValue.decode(requests[0].body)["results"].array
+        let second = try JSONValue.decode(requests[1].body)["results"].array
+        #expect(first.allSatisfy { $0.object["identity"] != nil })
+        #expect(second.allSatisfy { $0.object["identity"] == nil })
+        #expect(try ids(requests[0].body) == ids(requests[1].body))
+        #expect(second.allSatisfy { $0["signature"].string == "swift/v1::Tests::Suite/pass" })
+        #expect(second.allSatisfy { $0["fields"]["file_path"].string == "Tests/Suite.swift" })
+        #expect(await client.identityRejected)
+    }
+    @Test func afterARefusalIdentityIsLeftOutOfLaterBatches() async throws {
+        let transport = MockTransport([http(400, Self.unknownIdentity), http(#"{"accepted":"1","duplicates":"0","errors":[]}"#), http(#"{"accepted":"1","duplicates":"0","errors":[]}"#)])
+        let client = APIClient(config: onlineConfig(), transport: transport, sleeper: RecordingSleeper())
+        let payloads = try APIClient.batches(identityRows(), size: 1)
+        #expect(payloads.count == 2)
+        try await client.report(payloads, run: RunHandle(sequence: 1, ownsCompletion: true))
+        let requests = await transport.requests
+        #expect(requests.count == 3, "the second batch goes out once, without being refused first")
+        #expect(try JSONValue.decode(requests[2].body)["results"].array.allSatisfy { $0.object["identity"] == nil })
+    }
+    @Test func theUnescapedMessageIsRecognisedToo() async throws {
+        let transport = MockTransport([http(400, #"invalid JSON: unknown field "identity""#), http(#"{"accepted":"2","duplicates":"0","errors":[]}"#)])
+        let client = APIClient(config: onlineConfig(), transport: transport, sleeper: RecordingSleeper())
+        try await client.report(APIClient.batches(identityRows(), size: 200), run: RunHandle(sequence: 1, ownsCompletion: true))
+        #expect(await transport.requests.count == 2)
+    }
+    @Test func anyOther400IsStillAnErrorAndKeepsIdentity() async throws {
+        let transport = MockTransport([http(400, #"{"code":3,"message":"proto: unknown field \"surprise\"","details":[]}"#), http(#"{"accepted":"2","duplicates":"0","errors":[]}"#)])
+        let client = APIClient(config: onlineConfig(), transport: transport, sleeper: RecordingSleeper())
+        let payloads = try APIClient.batches(identityRows(), size: 200)
+        await #expect(throws: ReporterError.self) { try await client.report(payloads, run: RunHandle(sequence: 1, ownsCompletion: true)) }
+        #expect(await transport.requests.count == 1, "no resend for a 400 about something else")
+        #expect(await !client.identityRejected)
+        try await client.report(payloads, run: RunHandle(sequence: 1, ownsCompletion: true))
+        let last = try #require(await transport.requests.last)
+        #expect(try JSONValue.decode(last.body)["results"].array.allSatisfy { $0.object["identity"] != nil })
+    }
+    @Test func aSecondRefusalAfterDroppingIdentityIsAnError() async throws {
+        let transport = MockTransport([http(400, Self.unknownIdentity), http(400, Self.unknownIdentity)])
+        let client = APIClient(config: onlineConfig(), transport: transport, sleeper: RecordingSleeper())
+        let payloads = try APIClient.batches(identityRows(), size: 200)
+        await #expect(throws: ReporterError.self) { try await client.report(payloads, run: RunHandle(sequence: 1, ownsCompletion: true)) }
+        #expect(await transport.requests.count == 2, "one resend, not a loop")
+    }
+    @Test func aBatchThatNeverHadIdentityIsNotResent() async throws {
+        let transport = MockTransport([http(400, Self.unknownIdentity)])
+        let client = APIClient(config: onlineConfig(), transport: transport, sleeper: RecordingSleeper())
+        await #expect(throws: ReporterError.self) { try await client.report(APIClient.batches([sampleRow()], size: 200), run: RunHandle(sequence: 1, ownsCompletion: true)) }
+        #expect(await transport.requests.count == 1)
+    }
     @Test func batchingRespectsCountAndPayloadLimits() throws {
         let rows = (0..<3).map { sampleRow(id: "00000000-0000-4000-8000-00000000000\($0)") }
         #expect(try APIClient.batches(rows, size: 2).map { try JSONValue.decode($0)["results"].array.count } == [2, 1])

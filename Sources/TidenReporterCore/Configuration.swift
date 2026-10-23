@@ -7,6 +7,9 @@ public struct Configuration: Sendable {
     public var rootDir: URL
     public var output: URL
     public var rootSuite: String?
+    /// The repository the tests belong to, resolved (see `RepositoryResolver`); nil when none could be found or the
+    /// mode is `off`. Identity parts are sent only with it.
+    public var repository: String?
     public var baseURL = URL(string: "https://api.tiden.ai")!
     public var token: String?
     public var product: String?
@@ -28,13 +31,13 @@ public struct Configuration: Sendable {
 
     public static let optionKeys: [String: String] = [
         "mode": "mode", "fallback": "fallback", "root-dir": "rootDir", "output": "report.connections.local.path",
-        "root-suite": "rootSuite", "base-url": "tiden.api.baseUrl", "token": "tiden.api.token", "product-id": "tiden.product",
+        "root-suite": "rootSuite", "repository": "repository", "base-url": "tiden.api.baseUrl", "token": "tiden.api.token", "product-id": "tiden.product",
         "run-id": "tiden.run.id", "run-title": "tiden.run.title", "run-description": "tiden.run.description",
         "complete": "tiden.run.complete", "branch": "tiden.run.branch", "build-sha": "tiden.run.buildSha",
         "environment": "environment", "batch-size": "tiden.batch.size", "upload-attachments": "tiden.uploadAttachments"
     ]
     public static let environmentKeys: [String: String] = [
-        "TIDEN_MODE": "mode", "TIDEN_FALLBACK": "fallback", "TIDEN_ROOT_DIR": "rootDir", "TIDEN_ROOT_SUITE": "rootSuite",
+        "TIDEN_MODE": "mode", "TIDEN_FALLBACK": "fallback", "TIDEN_ROOT_DIR": "rootDir", "TIDEN_ROOT_SUITE": "rootSuite", "TIDEN_REPOSITORY": "repository",
         "TIDEN_REPORT_CONNECTION_PATH": "report.connections.local.path", "TIDEN_API_TOKEN": "tiden.api.token",
         "TIDEN_BASE_URL": "tiden.api.baseUrl", "TIDEN_PRODUCT_ID": "tiden.product", "TIDEN_RUN_ID": "tiden.run.id",
         "TIDEN_RUN_TITLE": "tiden.run.title", "TIDEN_RUN_DESCRIPTION": "tiden.run.description", "TIDEN_RUN_COMPLETE": "tiden.run.complete",
@@ -99,6 +102,7 @@ public struct Configuration: Sendable {
         if let s = try string("rootDir") { config.rootDir = path(s) }
         if let s = try string("report.connections.local.path") { config.output = path(s) }
         config.rootSuite = try string("rootSuite")
+        let explicitRepository = try string("repository")
         if let s = try string("tiden.api.baseUrl") {
             guard let url = URL(string: s), let parts = URLComponents(url: url, resolvingAgainstBaseURL: false),
                   ["https", "http"].contains(parts.scheme), parts.host != nil, parts.user == nil, parts.password == nil,
@@ -119,6 +123,10 @@ public struct Configuration: Sendable {
         if let map = values["sourceMap"] {
             guard case .object(let entries) = map, entries.values.allSatisfy({ $0.string != nil }) else { throw ReporterError("sourceMap must map signatures to repository relative paths") }
             config.sourceMap = entries.mapValues { $0.string! }
+        }
+        // Only a mode that sends or writes results looks for the repository.
+        if config.mode != .off {
+            config.repository = RepositoryResolver.resolve(explicit: explicitRepository, environment: env, startDirectory: config.rootDir)
         }
         if config.mode == .tiden {
             guard config.token != nil, config.product != nil else { throw ReporterError("tiden mode requires TIDEN_API_TOKEN and TIDEN_PRODUCT_ID") }

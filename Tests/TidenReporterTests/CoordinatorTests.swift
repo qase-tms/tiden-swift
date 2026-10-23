@@ -31,6 +31,58 @@ struct CoordinatorTests {
         #expect(persisted.array.first?["execution"]["status"].string == "failed")
         #expect(FileManager.default.fileExists(atPath: config.output.appendingPathComponent("batch-1.json").path))
     }
+    @Test func theRepositoryReachesTheRunAndEveryResult() async throws {
+        let root = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        _ = try fixtureSources(root: root)
+        var config = onlineConfig(output: root.appendingPathComponent("output"))
+        config.rootDir = root; config.uploadAttachments = false; config.repository = "https://github.com/acme/shop"
+        let transport = MockTransport([http(#"{"run":{"seqNum":9}}"#), http(#"{"accepted":"1","duplicates":"0","errors":[]}"#), http("{}")])
+        let coordinator = ReportCoordinator(config: config, reader: XCResultReader(process: try extraction(fixtureInput())), api: APIClient(config: config, transport: transport))
+        try await coordinator.begin()
+        let summary = try await coordinator.report(bundle: root.appendingPathComponent("input.xcresult"), exitCode: 0, cancelled: false)
+        #expect(summary.trustworthy)
+        #expect(!summary.diagnostics.contains { $0.contains("git repository") })
+        let requests = await transport.requests
+        #expect(try JSONValue.decode(requests[0].body)["clientMeta"]["gitRepository"].string == "https://github.com/acme/shop")
+        let row = try JSONValue.decode(requests[1].body)["results"].array[0]
+        #expect(row["identity"]["repository"].string == "https://github.com/acme/shop")
+        #expect(row["identity"]["scope"].array.compactMap(\.string) == ["Tests", "Suite"])
+        #expect(row["identity"]["name"].array.compactMap(\.string) == ["pass"])
+        #expect(row["signature"].string == "swift/v1::Tests::Suite/pass")
+    }
+    @Test func withoutARepositoryNoIdentityIsSentAndOneWarningIsKept() async throws {
+        let root = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        _ = try fixtureSources(root: root)
+        var config = onlineConfig(output: root.appendingPathComponent("output"))
+        config.rootDir = root; config.uploadAttachments = false
+        #expect(config.repository == nil)
+        let transport = MockTransport([http(#"{"run":{"seqNum":9}}"#), http(#"{"accepted":"1","duplicates":"0","errors":[]}"#), http("{}")])
+        let coordinator = ReportCoordinator(config: config, reader: XCResultReader(process: try extraction(fixtureInput())), api: APIClient(config: config, transport: transport))
+        try await coordinator.begin()
+        let summary = try await coordinator.report(bundle: root.appendingPathComponent("input.xcresult"), exitCode: 0, cancelled: false)
+        #expect(summary.trustworthy)
+        #expect(summary.diagnostics.filter { $0.contains("git repository") }.count == 1)
+        let requests = await transport.requests
+        #expect(try JSONValue.decode(requests[0].body)["clientMeta"]["gitRepository"].string == nil)
+        #expect(try JSONValue.decode(requests[1].body)["results"].array.allSatisfy { $0.object["identity"] == nil })
+    }
+    @Test func aServerThatRefusesIdentityStillCompletesTheRunWithAWarning() async throws {
+        let root = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        _ = try fixtureSources(root: root)
+        var config = onlineConfig(output: root.appendingPathComponent("output"))
+        config.rootDir = root; config.uploadAttachments = false; config.repository = "https://github.com/acme/shop"
+        let refusal = #"{"code":3,"message":"proto: unknown field \"identity\"","details":[]}"#
+        let transport = MockTransport([http(#"{"run":{"seqNum":9}}"#), http(400, refusal), http(#"{"accepted":"1","duplicates":"0","errors":[]}"#), http("{}")])
+        let coordinator = ReportCoordinator(config: config, reader: XCResultReader(process: try extraction(fixtureInput())), api: APIClient(config: config, transport: transport))
+        try await coordinator.begin()
+        let summary = try await coordinator.report(bundle: root.appendingPathComponent("input.xcresult"), exitCode: 0, cancelled: false)
+        #expect(summary.trustworthy)
+        #expect(summary.diagnostics.contains { $0.contains("\"identity\" field") })
+        #expect(await transport.requests.last?.url.path.hasSuffix("/runs/9:complete") == true)
+    }
     @Test func enabledAttachmentExportFailureAbortsOwnedRun() async throws {
         let root = try temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }

@@ -38,6 +38,30 @@ struct ConverterTests {
         #expect(report.contexts.allSatisfy { $0.arguments.isEmpty })
         #expect(report.rows.allSatisfy { Set($0.params.keys) == ["tiden.xcode.device", "tiden.xcode.configuration"] })
     }
+    @Test func identityPartsFollowTheEnclosingTypesAndAreOmittedWithoutARepository() throws {
+        let root = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let input = try fixtureInput(definition: "Outer/Nested/parameterized(value:)")
+        let sources = try fixtureSources(root: root)
+        let withRepository = Converter().convert(input, sources: sources, repository: "https://github.com/acme/shop")
+        // The fixture source has no Outer/Nested declaration, so the run would not be trustworthy; identity does not depend on it.
+        #expect(withRepository.rows.count == 1)
+        let identity = try #require(withRepository.rows.first?.identity)
+        #expect(identity == IdentityParts(language: "swift", repository: "https://github.com/acme/shop", scope: ["Tests", "Outer", "Nested"], name: ["parameterized(value:)"]))
+        #expect(withRepository.rows.first?.signature == "swift/v1::Tests::Outer/Nested/parameterized(value:)")
+        let without = Converter().convert(input, sources: sources)
+        #expect(without.rows.allSatisfy { $0.identity == nil })
+        #expect(without.rows.first?.signature == withRepository.rows.first?.signature)
+    }
+    @Test func repeatedExecutionsOfOneTestShareOneIdentity() throws {
+        let root = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let runs = try json(#"[{"nodeType":"Repetition","name":"Repetition 1","result":"Passed","durationInSeconds":0.1},{"nodeType":"Repetition","name":"Repetition 2","result":"Passed","durationInSeconds":0.1}]"#)
+        let report = Converter().convert(try fixtureInput(runs: runs, count: 2), sources: try fixtureSources(root: root), repository: "r")
+        #expect(report.rows.count == 2)
+        #expect(report.rows[0].identity == report.rows[1].identity)
+        #expect(report.rows[0].identity?.name == ["pass"])
+    }
     @Test func failedParameterizedAssertionsDoNotOverwriteOriginalRepeatedInputs() throws {
         let root = try temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }

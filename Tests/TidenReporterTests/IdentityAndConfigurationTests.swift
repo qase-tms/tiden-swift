@@ -12,7 +12,40 @@ struct IdentityAndConfigurationTests {
         #expect(try Identity.signature(module: "UnitTests", identifier: "topLevel()") == "swift/v1::UnitTests::topLevel")
         #expect(try Identity.signature(module: "UnitTests", identifier: "suite/testPass()") != "swift/v1::UnitTests::Suite/testPass")
     }
+    @Test func identityPartsAreTheModuleThenEnclosingTypesAndTheDeclaration() throws {
+        let repository = "https://github.com/acme/shop"
+        let normal = try Identity.parts(module: "UnitTests", identifier: "Suite/testPass()", repository: repository)
+        #expect(normal == IdentityParts(language: "swift", repository: repository, scope: ["UnitTests", "Suite"], name: ["testPass"]))
+        // Labels are kept; only a terminal "()" goes, exactly as in the signature.
+        let nested = try Identity.parts(module: "UnitTests", identifier: "Outer/Nested/parameterized(value:)", repository: repository)
+        #expect(nested.scope == ["UnitTests", "Outer", "Nested"])
+        #expect(nested.name == ["parameterized(value:)"])
+        let deeper = try Identity.parts(module: "UnitTests", identifier: "A/B/C/function(_:)", repository: repository)
+        #expect(deeper.scope == ["UnitTests", "A", "B", "C"])
+        #expect(deeper.name == ["function(_:)"])
+        let topLevel = try Identity.parts(module: "UnitTests", identifier: "topLevel()", repository: repository)
+        #expect(topLevel.scope == ["UnitTests"])
+        #expect(topLevel.name == ["topLevel"])
+    }
+    @Test func identityPartsKeepCaseAndIgnoreTheUrlFormAndQuery() throws {
+        let repository = "git@github.com:acme/shop.git"
+        let plain = try Identity.parts(module: "UnitTests", identifier: "Outer/Nested/function(_:)", repository: repository)
+        let url = try Identity.parts(module: "UnitTests", identifier: "test://com.apple.xcode/Project/UnitTests/Outer/Nested/function(_:)?args=abcdef&repetition=3", repository: repository)
+        #expect(plain == url)
+        #expect(try Identity.parts(module: "UnitTests", identifier: "suite/testPass()", repository: repository) != Identity.parts(module: "UnitTests", identifier: "Suite/testPass()", repository: repository))
+    }
+    /// The parts are the signature's own path, cut in two: they never disagree about what the declaration is.
+    @Test func identityPartsAndSignatureAgreeOnEveryInput() throws {
+        for identifier in ["Suite/testPass()", "Outer/Nested/parameterized(value:)", "topLevel()", "test://com.apple.xcode/Project/UnitTests/Suite/testPass"] {
+            let parts = try Identity.parts(module: "UnitTests", identifier: identifier, repository: "r")
+            let path = (parts.scope.dropFirst() + parts.name).joined(separator: "/")
+            #expect(try Identity.signature(module: "UnitTests", identifier: identifier) == "swift/v1::UnitTests::\(path)")
+        }
+    }
     @Test func invalidIdentityIsRejected() {
+        #expect(throws: ReporterError.self) { try Identity.parts(module: "", identifier: "Suite/a()", repository: "r") }
+        #expect(throws: ReporterError.self) { try Identity.parts(module: "Tests", identifier: "", repository: "r") }
+        #expect(throws: ReporterError.self) { try Identity.parts(module: "Tests", identifier: "test://com.apple.xcode/OnlyProject", repository: "r") }
         #expect(throws: ReporterError.self) { try Identity.signature(module: "", identifier: "Suite/a()") }
         #expect(throws: ReporterError.self) { try Identity.signature(module: "Tests", identifier: "") }
         #expect(throws: ReporterError.self) { try Identity.signature(module: "Tests", identifier: "test://com.apple.xcode/OnlyProject") }
@@ -65,5 +98,44 @@ struct IdentityAndConfigurationTests {
         #expect(value["fields"]["file_path"].string == "Tests/Suite.swift")
         #expect(value["id"].string.flatMap(UUID.init(uuidString:)) != nil)
         #expect(value["attachments"].array.isEmpty)
+    }
+    @Test func identityIsSentBesideTheUnchangedSignatureAndOmittedWithoutIt() throws {
+        let with = try JSONValue.decode(Wire.encode(sampleRow(identity: sampleIdentity())))
+        #expect(with["signature"].string == "swift/v1::Tests::Suite/pass")
+        #expect(with["identity"]["language"].string == "swift")
+        #expect(with["identity"]["repository"].string == "https://github.com/acme/shop")
+        #expect(with["identity"]["scope"].array.compactMap(\.string) == ["Tests", "Suite"])
+        #expect(with["identity"]["name"].array.compactMap(\.string) == ["pass"])
+        #expect(Set(with["identity"].object.keys) == ["language", "repository", "scope", "name"])
+        let without = try JSONValue.decode(Wire.encode(sampleRow()))
+        #expect(without.object["identity"] == nil)
+    }
+    @Test func repositoryComesFromTheExplicitSettingWithTheUsualPrecedence() throws {
+        let cwd = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: cwd) }
+        let file = Data(#"{"mode":"report","repository":"https://github.com/from/file"}"#.utf8)
+        func resolve(env: [String: String] = [:], cli: [String: String] = [:], file: Data? = file) throws -> Configuration {
+            try Configuration.resolve(file: file, environment: env, cli: cli, cwd: cwd, defaultOutput: cwd.appendingPathComponent("out"))
+        }
+        #expect(try resolve().repository == "https://github.com/from/file")
+        #expect(try resolve(env: ["TIDEN_REPOSITORY": "https://github.com/from/env"]).repository == "https://github.com/from/env")
+        #expect(try resolve(env: ["TIDEN_REPOSITORY": "https://github.com/from/env"], cli: ["repository": "https://github.com/from/cli"]).repository == "https://github.com/from/cli")
+        #expect(try resolve(env: ["GITHUB_SERVER_URL": "https://github.com", "GITHUB_REPOSITORY": "from/ci"], file: Data(#"{"mode":"report"}"#.utf8)).repository == "https://github.com/from/ci")
+    }
+    @Test func offModeDoesNotLookForARepository() throws {
+        let cwd = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: cwd) }
+        let config = try Configuration.resolve(environment: ["TIDEN_REPOSITORY": "https://github.com/acme/shop"], cli: [:], cwd: cwd, defaultOutput: cwd.appendingPathComponent("out"))
+        #expect(config.mode == .off)
+        #expect(config.repository == nil)
+    }
+    @Test func theRunCarriesTheRepositoryInItsClientMeta() throws {
+        var config = onlineConfig()
+        #expect(CreateRun(config: config, now: Date()).clientMeta["gitRepository"] == nil)
+        config.repository = "https://github.com/acme/shop"
+        let meta = CreateRun(config: config, now: Date()).clientMeta
+        #expect(meta["gitRepository"] == "https://github.com/acme/shop")
+        #expect(meta["framework"] == "xcode")
+        #expect(meta["identity"] == "swift/v1")
     }
 }

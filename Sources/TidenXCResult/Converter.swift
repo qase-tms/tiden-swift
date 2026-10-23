@@ -24,8 +24,8 @@ public struct Converter: Sendable {
     public init(uuid: @escaping @Sendable () -> UUID = { UUID() }) { self.uuid = uuid }
     private static let executionKinds: Set<String> = ["Test Case Run", "Arguments", "Repetition", "Device", "Test Plan Configuration"]
     private struct Candidate { var node: JSONValue; var context: ExecutionContext; var params: [String: String] }
-    public func convert(_ input: XCResultInput, sources: SourceResolver, rootSuite: String? = nil, exitCode: Int32 = 0,
-                        cancelled: Bool = false) -> ConvertedReport {
+    public func convert(_ input: XCResultInput, sources: SourceResolver, rootSuite: String? = nil, repository: String? = nil,
+                        exitCode: Int32 = 0, cancelled: Bool = false) -> ConvertedReport {
         var summary = ReportSummary(); summary.exitCode = exitCode; summary.cancelled = cancelled
         summary.errors += input.diagnostics
         var rows: [ResultCreate] = [], contexts: [ExecutionContext] = [], infrastructure = 0
@@ -40,6 +40,7 @@ public struct Converter: Sendable {
             do {
                 let signature = try Identity.signature(module: test.module, identifier: test.identifier)
                 let declaration = try Identity.declaration(test.identifier)
+                let identity = try repository.map { try Identity.parts(module: test.module, identifier: test.identifier, repository: $0) }
                 guard let details = input.details[test.key] else { throw ReporterError("Missing test-details for \(test.key)") }
                 if let identifier = details["testIdentifier"].string,
                    try Identity.declaration(identifier) != declaration { throw ReporterError("test-details identifier mismatch") }
@@ -130,6 +131,7 @@ public struct Converter: Sendable {
                         var row = ResultCreate(id: uuid().uuidString.lowercased(), title: test.node["name"].string ?? declaration, signature: signature,
                                                execution: ResultExecution(status: status, durationMilliseconds: Int64((seconds * 1000).rounded()), startTime: candidate.context.startTime),
                                                suitePath: ([rootSuite].compactMap { $0 } + [test.module] + test.suites).map(SuiteSegment.init), fields: fields, params: params)
+                        row.identity = identity
                         let messages = failureMessages(candidate.node)
                         if !messages.isEmpty { row.message = messages.joined(separator: "\n") }
                         if let end = candidate.context.endTime { row.execution.endTime = end }
