@@ -47,6 +47,9 @@ public actor APIClient {
     private let transport: any HTTPTransport
     private let sleeper: any Sleeping
     private let now: @Sendable () -> Date
+    /// Set once the server has refused the `identity` field of a result. From then on it is left out of every
+    /// batch this process sends. A server that predates the field would otherwise reject every batch with a 400.
+    public private(set) var identityRejected = false
     public init(config: Configuration, transport: any HTTPTransport = URLSessionTransport(), sleeper: any Sleeping = TaskSleeper(),
                 now: @escaping @Sendable () -> Date = { Date() }) {
         self.config = config; self.transport = transport; self.sleeper = sleeper; self.now = now
@@ -72,7 +75,8 @@ public actor APIClient {
             }
             if (200..<300).contains(response.status) { return response.body }
             guard retrySafe, retryable.contains(response.status), attempt < 5 else {
-                throw ReporterError(config.redact("API POST \(suffix) failed with HTTP \(response.status). \(Self.refusal(response.body)) Payload retained locally."))
+                throw ReporterError(config.redact("API POST \(suffix) failed with HTTP \(response.status). \(Self.refusal(response.body)) Payload retained locally."),
+                                    httpStatus: response.status, responseBody: response.body)
             }
             var delay = min(pow(2, Double(attempt)), 30)
             if let text = response.headers["retry-after"] {
@@ -115,13 +119,49 @@ public actor APIClient {
         for payload in payloads {
             let count = try JSONValue.decode(payload)["results"].array.count
             guard (1...2000).contains(count), payload.count <= Self.payloadLimit else { throw ReporterError("Invalid persisted result batch") }
-            let response = try JSONValue.decode(await send("/runs/\(run.sequence)/results:report", body: payload))
+            let response = try JSONValue.decode(await sendResults(payload, run: run))
             guard let accepted = response["accepted"].integer, let duplicates = response["duplicates"].integer,
                   (0...count).contains(accepted), (0...count).contains(duplicates), accepted == count - duplicates,
                   response["errors"].array.isEmpty, response["errors"] == .null || {
                       if case .array = response["errors"] { return true }; return false
                   }() else { throw ReporterError(config.redact("Results acknowledgment mismatch; refusing run completion. \(Self.refusal(try Wire.encode(response)))")) }
         }
+    }
+    /// Sends one persisted batch. If the server refuses it for the one reason that `identity` is unknown to it, the
+    /// same batch (same result ids, so a partly landed first attempt deduplicates) goes out again without
+    /// `identity`, and later batches omit it from the start. Any other refusal is an error as before.
+    private func sendResults(_ payload: Data, run: RunHandle) async throws -> Data {
+        let suffix = "/runs/\(run.sequence)/results:report"
+        if identityRejected { return try await send(suffix, body: Self.withoutIdentity(payload)) }
+        do { return try await send(suffix, body: payload) }
+        catch let error as ReporterError {
+            guard Self.rejectsIdentity(error), Self.hasIdentity(payload) else { throw error }
+            identityRejected = true
+            return try await send(suffix, body: Self.withoutIdentity(payload))
+        }
+    }
+    /// A 400 from the gateway's strict JSON decoder naming exactly this field.
+    static func rejectsIdentity(_ error: ReporterError) -> Bool {
+        guard error.httpStatus == 400, let body = error.responseBody else { return false }
+        let needle = #"unknown field "identity""#
+        if String(decoding: body, as: UTF8.self).contains(needle) { return true }
+        // In a JSON body the quotes arrive escaped, so look in the decoded message too.
+        return (try? JSONValue.decode(body))?["message"].string?.contains(needle) == true
+    }
+    private static func hasIdentity(_ payload: Data) -> Bool {
+        guard let value = try? JSONValue.decode(payload) else { return false }
+        return value["results"].array.contains { $0.object["identity"] != nil }
+    }
+    static func withoutIdentity(_ payload: Data) throws -> Data {
+        let value = try JSONValue.decode(payload)
+        let results = value["results"].array.map { result -> JSONValue in
+            var object = result.object
+            object["identity"] = nil
+            return .object(object)
+        }
+        var root = value.object
+        root["results"] = .array(results)
+        return try Wire.encode(JSONValue.object(root))
     }
     private static func refusal(_ body: Data) -> String {
         guard let decoded = try? JSONValue.decode(body) else { return "Server returned no JSON reason." }

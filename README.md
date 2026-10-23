@@ -88,6 +88,7 @@ Precedence is **CLI options > environment variables > nested `tiden.config.json`
 | `--root-dir` | `TIDEN_ROOT_DIR` | `rootDir` | current directory |
 | `--output` | `TIDEN_REPORT_CONNECTION_PATH` | `report.connections.local.path` | `artifacts/<UUID>` |
 | `--root-suite` | `TIDEN_ROOT_SUITE` | `rootSuite` | none |
+| `--repository` | `TIDEN_REPOSITORY` | `repository` | found automatically (see Identity) |
 | `--token` | `TIDEN_API_TOKEN` | `tiden.api.token` | none |
 | `--base-url` | `TIDEN_BASE_URL` | `tiden.api.baseUrl` | `https://api.tiden.ai` |
 | `--product-id` | `TIDEN_PRODUCT_ID` | `tiden.product` | none |
@@ -135,6 +136,25 @@ swift/v1::MyAppTests::topLevelTest
 ```
 
 Module names and declaration paths come from Xcode identifiers. A no-argument declaration's terminal `()` is normalized away so Swift Testing and XCTest URL variants stay stable. Readable test titles, actual argument values, destinations, configurations, repetitions, and source line numbers do not change the signature.
+
+Next to the signature, every result carries the parts of its identity, which the server builds its case key from:
+
+```json
+"identity": {
+  "language": "swift",
+  "repository": "https://github.com/acme/shop",
+  "scope": ["MyAppTests", "Outer", "Nested"],
+  "name": ["parameterized(value:)"]
+}
+```
+
+`scope` is the test module and then the enclosing types; `name` is the declaration, by the rule above (argument labels kept, a terminal `()` removed). Spelling and case are as Xcode gives them; normalizing is the server's job. The signature is sent unchanged beside it. The repository is also sent as `clientMeta.gitRepository` on a run this reporter creates. It is looked up in this order:
+
+1. `--repository`, `TIDEN_REPOSITORY`, or `repository` in the config file;
+2. the CI's own variables: `GITHUB_SERVER_URL` + `GITHUB_REPOSITORY`, `CI_SERVER_URL` + `CI_PROJECT_PATH` (GitLab), `BITBUCKET_GIT_HTTP_ORIGIN`, `BUILD_REPOSITORY_URI` (Azure);
+3. the `origin` remote in `.git/config` of the nearest directory above `--root-dir` that has a `.git`: a folder, or the file a worktree or a submodule has.
+
+A `user:password@` part in an `http(s)` URL is removed before it is sent. If none of these gives a repository, the parts are not sent, the reporter prints one warning, and the signature is the whole identity, as before. The lookup runs only in `report` and `tiden` modes. A Tiden server that does not know `identity` yet answers 400 with `unknown field "identity"`; the reporter then sends the same batch again, with the same result IDs and without the parts, leaves them out of the rest of the run, and prints one warning. Any other 400 is an error as before.
 
 Every actual execution receives a distinct UUID; transport retries reuse the same UUID and exact batch bytes. Parameterized inputs are reported as string-valued `params` using Xcode's named `Test Value` entries. Their argument association preserves declaration traversal order. Device and configuration IDs use the reserved keys `tiden.xcode.device` and `tiden.xcode.configuration`; collisions with user parameter names are errors. Repetitions remain separate execution rows with `fields.xcode_attempt`; `fields.xcode_result` retains the original Xcode outcome. Explicit run timestamps are epoch seconds. Activity event timestamps are not used as execution start times.
 

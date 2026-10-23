@@ -2,7 +2,14 @@ import Foundation
 
 public struct ReporterError: Error, CustomStringConvertible, Sendable {
     public let description: String
-    public init(_ description: String) { self.description = description }
+    /// Set when the server answered with a refusal: the HTTP status and the raw body, for the few callers that
+    /// answer one specific refusal differently. Never printed; `description` is the redacted text.
+    public let httpStatus: Int?
+    public let responseBody: Data?
+    public init(_ description: String) { self.description = description; httpStatus = nil; responseBody = nil }
+    public init(_ description: String, httpStatus: Int, responseBody: Data) {
+        self.description = description; self.httpStatus = httpStatus; self.responseBody = responseBody
+    }
 }
 
 /// Schema-tolerant Xcode input, with strict accessors at the trust boundaries.
@@ -64,10 +71,23 @@ public struct SuiteSegment: Codable, Sendable, Equatable {
     public var title: String
     public init(_ title: String) { self.title = title }
 }
+/// The parts of a test's identity, from which the server builds its case key. `scope` and `name` are as Xcode
+/// names them; the server does any normalizing. The legacy `signature` is sent next to this, unchanged.
+public struct IdentityParts: Codable, Sendable, Equatable {
+    public var language: String
+    public var repository: String
+    public var scope: [String]
+    public var name: [String]
+    public init(language: String, repository: String, scope: [String], name: [String]) {
+        self.language = language; self.repository = repository; self.scope = scope; self.name = name
+    }
+}
 public struct ResultCreate: Codable, Sendable, Equatable {
     public var id: String
     public var title: String
     public var signature: String
+    /// Absent without a repository (or after a server that does not know the field refused it).
+    public var identity: IdentityParts?
     public var execution: ResultExecution
     public var suitePath: [SuiteSegment]
     public var fields: [String: String]
@@ -75,8 +95,9 @@ public struct ResultCreate: Codable, Sendable, Equatable {
     public var attachments: [String]
     public var message: String?
     public init(id: String, title: String, signature: String, execution: ResultExecution,
-                suitePath: [SuiteSegment] = [], fields: [String: String] = [:], params: [String: String] = [:]) {
-        self.id = id; self.title = title; self.signature = signature; self.execution = execution
+                suitePath: [SuiteSegment] = [], fields: [String: String] = [:], params: [String: String] = [:],
+                identity: IdentityParts? = nil) {
+        self.id = id; self.title = title; self.signature = signature; self.identity = identity; self.execution = execution
         self.suitePath = suitePath; self.fields = fields; self.params = params; attachments = []
     }
 }
@@ -91,6 +112,7 @@ public struct CreateRun: Codable, Sendable {
     public init(config: Configuration, now: Date) {
         title = config.title; description = config.runDescription; environment = config.environment
         branch = config.branch; buildSha = config.buildSha
+        if let repository = config.repository { clientMeta["gitRepository"] = repository }
         startedAt = ISO8601DateFormatter().string(from: now)
     }
 }
@@ -126,6 +148,15 @@ public enum Identity {
             throw ReporterError("Missing containing declaration/function identity: \(identifier)")
         }
         return value
+    }
+    public static let language = "swift"
+    /// `scope` = the module, then the enclosing types; `name` = the declaration itself, by the same rule as the
+    /// signature (argument labels kept, a terminal `()` removed). Case and spelling are as Xcode gives them.
+    public static func parts(module: String, identifier: String, repository: String) throws -> IdentityParts {
+        guard !module.isEmpty, !module.contains("::") else { throw ReporterError("Invalid test module") }
+        let path = try declaration(identifier).split(separator: "/").map(String.init)
+        guard let name = path.last else { throw ReporterError("Missing containing declaration/function identity: \(identifier)") }
+        return IdentityParts(language: language, repository: repository, scope: [module] + path.dropLast(), name: [name])
     }
     public static func signature(module: String, identifier: String) throws -> String {
         guard !module.isEmpty, !module.contains("::") else { throw ReporterError("Invalid test module") }

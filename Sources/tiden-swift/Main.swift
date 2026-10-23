@@ -18,6 +18,7 @@ import TidenXCResult
       --product-id UUID --token TOKEN --base-url URL
       --run-id N --complete true|false --run-title TITLE --run-description TEXT
       --branch NAME --build-sha SHA --environment NAME --root-suite TITLE
+      --repository URL               Repository the tests belong to (default: CI variables, then the origin remote)
       --batch-size 1..2000           Default: 200; requests capped at 8 MiB
       --upload-attachments true|false  Default: true
       --fallback off|report          Persist local evidence on API failure; exit stays nonzero
