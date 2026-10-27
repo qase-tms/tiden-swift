@@ -27,6 +27,35 @@ struct IdentityAndConfigurationTests {
         #expect(config.batchSize == 20)
         #expect(!config.uploadAttachments)
     }
+    @Test func buildShaFallsBackToGithubShaThenGitThenOmitted() throws {
+        let product = "11111111-1111-4111-8111-111111111111"
+        let base = ["TIDEN_MODE": "tiden", "TIDEN_API_TOKEN": "t", "TIDEN_PRODUCT_ID": product]
+        let sha = String(repeating: "b", count: 40)
+        func resolve(_ extra: [String: String], cwd: URL) throws -> Configuration {
+            try Configuration.resolve(environment: base.merging(extra) { $1 }, cli: [:], cwd: cwd, defaultOutput: cwd)
+        }
+        let plain = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: plain) }
+        #expect(try resolve(["TIDEN_BUILD_SHA": "abc1234", "GITHUB_SHA": sha], cwd: plain).buildSha == "abc1234")
+        #expect(try resolve(["GITHUB_SHA": sha], cwd: plain).buildSha == sha)
+        #expect(try resolve(["GITHUB_SHA": "not-a-sha"], cwd: plain).buildSha == nil)
+        #expect(try resolve([:], cwd: plain).buildSha == nil)
+        // git HEAD of a real repository
+        func git(_ args: [String]) throws -> String {
+            let p = Process(); p.executableURL = URL(fileURLWithPath: "/usr/bin/env"); p.arguments = ["git"] + args
+            p.currentDirectoryURL = plain
+            let pipe = Pipe(); p.standardOutput = pipe
+            try p.run(); let d = pipe.fileHandleForReading.readDataToEndOfFile(); p.waitUntilExit()
+            return String(data: d, encoding: .utf8)!.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        _ = try git(["init", "-q"])
+        _ = try git(["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", "c"])
+        let head = try git(["rev-parse", "HEAD"])
+        #expect(try resolve([:], cwd: plain).buildSha == head)
+        // report mode never shells out to git
+        let report = try Configuration.resolve(environment: ["TIDEN_MODE": "report"], cli: [:], cwd: plain, defaultOutput: plain)
+        #expect(report.buildSha == nil)
+    }
     @Test func relativeConfigPathsTreatCWDAsDirectoryWithoutTrailingSlash() throws {
         let root = try temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
