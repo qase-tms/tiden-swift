@@ -53,7 +53,7 @@ Modes are explicit: `off` disables extraction/reporting, `report` writes local J
 
 ## CI and joined runs
 
-Keep API tokens in CI secrets. Record branch and build metadata explicitly using `TIDEN_BRANCH` and `TIDEN_BUILD_SHA`.
+Keep API tokens in CI secrets. Record branch and build metadata explicitly using `TIDEN_BRANCH` and `TIDEN_BUILD_SHA`. In `tiden` mode, when no build SHA is set, the reporter falls back to `GITHUB_SHA`, then `git rev-parse HEAD` in the root directory; the field is omitted when none is available. By-SHA release gates use this value.
 
 ```sh
 export TIDEN_MODE=tiden

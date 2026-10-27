@@ -44,6 +44,28 @@ public struct Configuration: Sendable {
         "TIDEN_BRANCH": "tiden.run.branch", "TIDEN_BUILD_SHA": "tiden.run.buildSha", "TIDEN_ENVIRONMENT": "environment",
         "TIDEN_BATCH_SIZE": "tiden.batch.size", "TIDEN_UPLOAD_ATTACHMENTS": "tiden.uploadAttachments"
     ]
+    /// Fallback after an explicit `--build-sha` / `TIDEN_BUILD_SHA`: `GITHUB_SHA`, then `git rev-parse HEAD`.
+    /// Nil (never an empty string) when neither yields a 7-64 character hex SHA.
+    static func fallbackBuildSha(environment env: [String: String], cwd: URL) -> String? {
+        func valid(_ text: String?) -> String? {
+            guard let text = text?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  (7...64).contains(text.count), text.allSatisfy({ $0.isHexDigit }) else { return nil }
+            return text
+        }
+        if let sha = valid(env["GITHUB_SHA"]) { return sha }
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+        process.arguments = ["git", "rev-parse", "HEAD"]
+        process.currentDirectoryURL = cwd
+        let out = Pipe()
+        process.standardOutput = out
+        process.standardError = FileHandle.nullDevice
+        do { try process.run() } catch { return nil }
+        let data = out.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        guard process.terminationStatus == 0 else { return nil }
+        return valid(String(data: data, encoding: .utf8))
+    }
     public static func resolve(file: Data? = nil, environment env: [String: String], cli: [String: String], cwd: URL,
                                defaultOutput: URL) throws -> Configuration {
         var values: [String: JSONValue] = [:]
@@ -117,6 +139,7 @@ public struct Configuration: Sendable {
         config.complete = try boolean("tiden.run.complete", default: true)
         config.title = try string("tiden.run.title"); config.runDescription = try string("tiden.run.description")
         config.branch = try string("tiden.run.branch"); config.buildSha = try string("tiden.run.buildSha")
+        if config.mode == .tiden, config.buildSha == nil { config.buildSha = Configuration.fallbackBuildSha(environment: env, cwd: config.rootDir) }
         config.environment = try string("environment")
         config.batchSize = try integer("tiden.batch.size", range: 1...2000) ?? 200
         config.uploadAttachments = try boolean("tiden.uploadAttachments", default: true)
