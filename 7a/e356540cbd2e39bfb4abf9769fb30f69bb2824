@@ -1,0 +1,23 @@
+Sources/TidenReporterCore/Configuration.swift
+  s_89f448a790ee78::t_8a191ccc4f296f 44-65,138
+README.md
+  s_89f448a790ee78::t_8a191ccc4f296f 56
+Tests/TidenReporterTests/IdentityAndConfigurationTests.swift
+  s_89f448a790ee78::t_8a191ccc4f296f 30-58
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7ae356540cbd2e39bfb4abf9769fb30f69bb2824",
+  "prompts": {},
+  "sessions": {
+    "s_89f448a790ee78": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c537db77-78dc-42ea-a64a-6720c0118669",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "prostoandrei <avaganov@qase.io>"
+    }
+  }
+}
