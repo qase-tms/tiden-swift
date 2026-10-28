@@ -1,0 +1,31 @@
+Sources/tiden-swift/Main.swift
+  s_2786d0aa885071::t_e64ebd691bf438 45,47
+  s_2786d0aa885071::t_7e188f6fc3cfdf 20-21
+Sources/TidenReporterCore/BuildShaResolver.swift
+  s_2786d0aa885071::t_a28feecb974829 1-21
+Sources/TidenReporterCore/Configuration.swift
+  s_2786d0aa885071::t_e4bdf8b859b5a3 138-143
+Tests/TidenReporterTests/BuildShaTests.swift
+  s_2786d0aa885071::t_ea59fc6d693c8e 48,70-71
+  s_2786d0aa885071::t_212dbca1429646 1-47,49-69,72-127
+README.md
+  s_2786d0aa885071::t_14dd3fef7d0d16 100
+  s_2786d0aa885071::t_e3c76201c52ae9 56
+  s_2786d0aa885071::t_aef7c6cb32b7c6 105-106
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1e2eeb15bf9442855ee3fd95060a436f37bd4ba8",
+  "prompts": {},
+  "sessions": {
+    "s_2786d0aa885071": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4d8d4f88-34c2-4cc5-93c2-bc82e79a7a90",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "prostoandrei <avaganov@qase.io>"
+    }
+  }
+}
