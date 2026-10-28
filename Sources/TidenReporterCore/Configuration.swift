@@ -44,9 +44,16 @@ public struct Configuration: Sendable {
         "TIDEN_BRANCH": "tiden.run.branch", "TIDEN_BUILD_SHA": "tiden.run.buildSha", "TIDEN_ENVIRONMENT": "environment",
         "TIDEN_BATCH_SIZE": "tiden.batch.size", "TIDEN_UPLOAD_ATTACHMENTS": "tiden.uploadAttachments"
     ]
+    /// Settings where a blank value counts as unset and falls through to the next source instead of failing the
+    /// run: a build SHA is often set from a CI expression that comes out empty, and git HEAD is still there below it.
+    static let blankIsUnset: Set<String> = ["tiden.run.buildSha"]
+
     public static func resolve(file: Data? = nil, environment env: [String: String], cli: [String: String], cwd: URL,
                                defaultOutput: URL) throws -> Configuration {
         var values: [String: JSONValue] = [:]
+        func blank(_ path: String, _ text: String?) -> Bool {
+            blankIsUnset.contains(path) && (text?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? false)
+        }
         if let file {
             let decoded = try JSONValue.decode(file)
             guard case .object = decoded else { throw ReporterError("tiden.config.json must be an object") }
@@ -62,10 +69,11 @@ public struct Configuration: Sendable {
             for key in ["tiden", "tiden.api", "tiden.run", "tiden.batch", "report", "report.connections", "report.connections.local"] {
                 if values[key] != nil { throw ReporterError("\(key) must be an object") }
             }
+            for key in blankIsUnset where blank(key, values[key]?.string) { values[key] = nil }
         }
-        for (key, path) in environmentKeys { if let v = env[key] { values[path] = .string(v) } }
+        for (key, path) in environmentKeys { if let v = env[key], !blank(path, v) { values[path] = .string(v) } }
         for (key, value) in cli {
-            guard let path = optionKeys[key] else { continue }
+            guard let path = optionKeys[key], !blank(path, value) else { continue }
             values[path] = .string(value)
         }
         func string(_ key: String) throws -> String? {

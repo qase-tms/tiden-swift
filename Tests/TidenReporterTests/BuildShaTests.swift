@@ -29,6 +29,21 @@ struct BuildShaTests {
             #expect(await process.commands.isEmpty)
         }
     }
+    @Test func aBlankSettingFallsThroughToTheNextSource() async throws {
+        let root = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let file = #"{"tiden":{"run":{"buildSha":"from-file"}}}"#
+        let cases = [
+            (try resolve(["TIDEN_BUILD_SHA": "  "], file: file, root: root), "from-file"),
+            (try resolve(["TIDEN_BUILD_SHA": "from-env"], cli: ["build-sha": ""], file: file, root: root), "from-env"),
+            (try resolve(["TIDEN_BUILD_SHA": "\n"], cli: ["build-sha": " "], file: #"{"tiden":{"run":{"buildSha":" "}}}"#, root: root), Self.sha)
+        ]
+        for (resolved, expected) in cases {
+            var config = resolved
+            await config.resolveBuildSha(process: MockProcess([head(Self.sha)]))
+            #expect(config.buildSha == expected)
+        }
+    }
     @Test func withoutASettingTheRunCarriesTheTrimmedCheckoutHead() async throws {
         let root = try temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
