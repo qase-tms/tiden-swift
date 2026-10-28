@@ -135,6 +135,12 @@ public struct Configuration: Sendable {
         }
         return config
     }
+    /// Falls back to the checkout's HEAD when no setting supplied a build SHA (see `BuildShaResolver`). Only a run
+    /// this reporter creates carries one, so nothing else runs git.
+    public mutating func resolveBuildSha(process: any ProcessExecuting) async {
+        guard mode == .tiden, runID == nil else { return }
+        buildSha = await BuildShaResolver.resolve(explicit: buildSha, directory: rootDir, process: process)
+    }
 }
 
 public struct Invocation: Sendable {

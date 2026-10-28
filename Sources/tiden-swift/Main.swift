@@ -17,7 +17,8 @@ import TidenXCResult
       --exit-code N                 Importer's original xcodebuild status
       --product-id UUID --token TOKEN --base-url URL
       --run-id N --complete true|false --run-title TITLE --run-description TEXT
-      --branch NAME --build-sha SHA --environment NAME --root-suite TITLE
+      --branch NAME --environment NAME --root-suite TITLE
+      --build-sha SHA                Commit of a created run (default: git HEAD of the root dir)
       --repository URL               Repository the tests belong to (default: CI variables, then the origin remote)
       --batch-size 1..2000           Default: 200; requests capped at 8 MiB
       --upload-attachments true|false  Default: true
@@ -41,8 +42,9 @@ import TidenXCResult
             let configFile = URL(fileURLWithPath: invocation.options["config"] ?? "tiden.config.json", relativeTo: cwd)
             let file = FileManager.default.fileExists(atPath: configFile.path) ? try Data(contentsOf: configFile) : nil
             if invocation.options["config"] != nil, file == nil { throw ReporterError("Explicit config file does not exist") }
-            let resolved = try Configuration.resolve(file: file, environment: ProcessInfo.processInfo.environment, cli: invocation.options,
+            var resolved = try Configuration.resolve(file: file, environment: ProcessInfo.processInfo.environment, cli: invocation.options,
                                                      cwd: cwd, defaultOutput: cwd.appendingPathComponent("artifacts/\(UUID().uuidString)"))
+            await resolved.resolveBuildSha(process: ProcessRunner())
             config = resolved
             guard !FileManager.default.fileExists(atPath: resolved.output.path) else { throw ReporterError("Output directory already exists; use a fresh --output directory to preserve evidence") }
             try FileManager.default.createDirectory(at: resolved.output, withIntermediateDirectories: true)

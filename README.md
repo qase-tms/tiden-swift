@@ -53,7 +53,7 @@ Modes are explicit: `off` disables extraction/reporting, `report` writes local J
 
 ## CI and joined runs
 
-Keep API tokens in CI secrets. Record branch and build metadata explicitly using `TIDEN_BRANCH` and `TIDEN_BUILD_SHA`.
+Keep API tokens in CI secrets. Record branch and build metadata explicitly using `TIDEN_BRANCH` and `TIDEN_BUILD_SHA`. Without `TIDEN_BUILD_SHA`, the build SHA is the git HEAD of `--root-dir` (see Configuration); set it when the CI checkout's HEAD is not the commit under test, for example a merge commit made for a pull request.
 
 ```sh
 export TIDEN_MODE=tiden
@@ -97,10 +97,12 @@ Precedence is **CLI options > environment variables > nested `tiden.config.json`
 | `--run-title` | `TIDEN_RUN_TITLE` | `tiden.run.title` | none |
 | `--run-description` | `TIDEN_RUN_DESCRIPTION` | `tiden.run.description` | none |
 | `--branch` | `TIDEN_BRANCH` | `tiden.run.branch` | none |
-| `--build-sha` | `TIDEN_BUILD_SHA` | `tiden.run.buildSha` | none |
+| `--build-sha` | `TIDEN_BUILD_SHA` | `tiden.run.buildSha` | git HEAD of `--root-dir` (see below) |
 | `--environment` | `TIDEN_ENVIRONMENT` | `environment` | none |
 | `--batch-size` | `TIDEN_BATCH_SIZE` | `tiden.batch.size` | `200` |
 | `--upload-attachments` | `TIDEN_UPLOAD_ATTACHMENTS` | `tiden.uploadAttachments` | `true` |
+
+A run this reporter creates carries a build SHA, the commit the run tested. When no option, variable, or config value sets it, the reporter runs `git rev-parse HEAD` in `--root-dir` and sends the trimmed output. Git gets the same environment as other child processes, without `TIDEN_API_TOKEN`. If git is missing, the directory is not a checkout, or the command fails, the run is created without a build SHA; the run does not fail. A joined run (`--run-id`) and the `report` and `off` modes do not run git.
 
 Booleans accept `true` or `false`. Batch size must be 1–2000; requests are also capped at 8 MiB. Run IDs are positive int32 sequence numbers, distinct from product UUIDs. `sourceMap` is a file-only mapping from permanent signatures to existing repository-relative source paths.
 
