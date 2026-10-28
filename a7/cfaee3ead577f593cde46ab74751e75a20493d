@@ -1,0 +1,23 @@
+README.md
+  s_183d5442023bc1::t_9bdc6728d5571d 105
+Tests/TidenReporterTests/BuildShaTests.swift
+  s_183d5442023bc1::t_9bdc6728d5571d 32-46
+Sources/TidenReporterCore/Configuration.swift
+  s_183d5442023bc1::t_9bdc6728d5571d 47-50,54-56,72,74,76
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a7cfaee3ead577f593cde46ab74751e75a20493d",
+  "prompts": {},
+  "sessions": {
+    "s_183d5442023bc1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "85835d40-186d-470b-9432-9282dbd1bb18",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "prostoandrei <avaganov@qase.io>"
+    }
+  }
+}
